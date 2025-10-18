@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 
 
 class PromptScore(BaseModel):
-    """Score card for evaluating prompt quality using structured generation."""
+    """Score card for evaluating prompt quality."""
 
     clarity: int = Field(ge=1, le=5, description="1-5 score for clarity and structure")
     specificity: int = Field(
@@ -124,7 +124,7 @@ class MetaPromptOptimizer:
     ) -> str:
         """Build the meta-prompt for optimization."""
 
-        meta_prompt = f"""You are an expert prompt engineer. Your task is to improve the following prompt to make it more effective.
+        meta_prompt = f"""You are an expert prompt engineer following the RISEN framework. Your task is to improve the following prompt to make it more effective.
 
 ORIGINAL PROMPT:
 {prompt}
