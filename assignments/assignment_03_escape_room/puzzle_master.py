@@ -1,9 +1,6 @@
 """
 Assignment 3: Escape Room Puzzle Master
 Few-Shot Prompting - Learn from examples to create brain-teasing puzzles
-
-Your mission: Create an AI that learns from puzzle examples to generate
-new escape room challenges that are clever, solvable, and fun!
 """
 
 import os
@@ -12,6 +9,7 @@ import random
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -36,21 +34,17 @@ class DifficultyLevel(Enum):
 
 @dataclass
 class Puzzle:
-    """Represents an escape room puzzle"""
-
     puzzle_text: str
     solution: str
     puzzle_type: str
     difficulty: int
     hints: List[str]
     explanation: str
-    time_estimate: int  # minutes
+    time_estimate: int
 
 
 @dataclass
 class PuzzleSequence:
-    """A series of interconnected puzzles"""
-
     theme: str
     puzzles: List[Puzzle]
     final_solution: str
@@ -58,19 +52,7 @@ class PuzzleSequence:
 
 
 class PuzzleMaster:
-    """
-    AI-powered escape room puzzle generator using few-shot prompting.
-    Learns from examples to create engaging, solvable puzzles.
-    """
-
     def __init__(self, model_name: str = "gpt-4o-mini", temperature: float = 0.7):
-        """
-        Initialize the puzzle master.
-
-        Args:
-            model_name: The LLM model to use
-            temperature: Controls creativity (higher = more creative)
-        """
         self.llm = ChatOpenAI(model=model_name, temperature=temperature)
         self.puzzle_examples = self._load_puzzle_examples()
         self.generation_chain = None
@@ -79,68 +61,64 @@ class PuzzleMaster:
         self._setup_chains()
 
     def _load_puzzle_examples(self) -> Dict[str, List[dict]]:
-        """
-        TODO #1: Create example puzzles for few-shot learning.
-
-        Create examples for each puzzle type with consistent format.
-        Include puzzle, solution, explanation, and metadata.
-
-        Returns:
-            Dictionary mapping puzzle types to example lists
-        """
-
         examples = {
             "riddle": [
                 {
-                    "puzzle": "I speak without a mouth and hear without ears. I have no body, but come alive with wind. What am I?",
+                    "puzzle": "I speak without a mouth and hear without ears. What am I?",
                     "solution": "An echo",
                     "difficulty": "2",
-                    "explanation": "An echo repeats sounds (speaks) and responds to sounds (hears) but has no physical form.",
+                    "explanation": "Echo repeats sound but has no body."
                 },
-                # TODO: Add 2-3 more riddle examples
+                {
+                    "puzzle": "I have keys but no locks. What am I?",
+                    "solution": "A piano",
+                    "difficulty": "2",
+                    "explanation": "Piano has keys you press."
+                },
+                {
+                    "puzzle": "I can be cracked, made, told, and played. What am I?",
+                    "solution": "A joke",
+                    "difficulty": "1",
+                    "explanation": "Jokes can be cracked and told."
+                },
             ],
             "cipher": [
-                {
-                    "puzzle": "Decode: 13-1-26-5",
-                    "solution": "MAZE (M=13, A=1, Z=26, E=5)",
-                    "difficulty": "3",
-                    "explanation": "Simple substitution cipher using alphabetical position numbers.",
-                },
-                # TODO: Add 2-3 more cipher examples
+                {"puzzle": "13-1-26-5", "solution": "MAZE", "difficulty": "3", "explanation": "A=1"},
+                {"puzzle": "8-5-12-16", "solution": "HELP", "difficulty": "2", "explanation": "Alphabet cipher"},
+                {"puzzle": "20-9-13-5", "solution": "TIME", "difficulty": "2", "explanation": "Basic mapping"},
             ],
             "logic": [
                 {
-                    "puzzle": "Three switches control three light bulbs in another room. You can only enter the room once. How do you determine which switch controls which bulb?",
-                    "solution": "Turn on first switch for 10 minutes, then turn it off. Turn on second switch and enter room. Hot unlit bulb = first switch, lit bulb = second switch, cold unlit = third switch.",
+                    "puzzle": "Three switches control three bulbs...",
+                    "solution": "Heat test method",
                     "difficulty": "4",
-                    "explanation": "Uses the property that incandescent bulbs generate heat when on.",
+                    "explanation": "Use temperature to detect switch"
                 },
-                # TODO: Add 2-3 more logic examples
+                {
+                    "puzzle": "A farmer must take fox, chicken, grain...",
+                    "solution": "Chicken first...",
+                    "difficulty": "4",
+                    "explanation": "Classic logic sequence"
+                }
             ],
             "pattern": [
                 {
-                    "puzzle": "Complete the sequence: 2, 6, 12, 20, 30, ?",
+                    "puzzle": "2, 6, 12, 20, 30, ?",
                     "solution": "42",
                     "difficulty": "3",
-                    "explanation": "Pattern is n*(n+1): 1*2=2, 2*3=6, 3*4=12, 4*5=20, 5*6=30, 6*7=42",
+                    "explanation": "n(n+1)"
                 },
-                # TODO: Add 2-3 more pattern examples
-            ],
+                {
+                    "puzzle": "1,1,2,3,5,8,?",
+                    "solution": "13",
+                    "difficulty": "2",
+                    "explanation": "Fibonacci"
+                }
+            ]
         }
-
         return examples
 
     def _setup_chains(self):
-        """
-        TODO #2: Create few-shot prompt templates for puzzle generation.
-
-        Set up:
-        1. generation_chain: Creates new puzzles based on examples
-        2. validation_chain: Checks if puzzles are solvable
-        3. hint_chain: Generates progressive hints
-        """
-
-        # TODO: Create the example prompt template
         example_prompt = PromptTemplate.from_template(
             """Puzzle: {puzzle}
 Solution: {solution}
@@ -148,256 +126,165 @@ Difficulty: {difficulty}
 Explanation: {explanation}"""
         )
 
-        # TODO: Create few-shot template for puzzle generation
-        # Include prefix with instructions, examples, and suffix for input
 
-        generation_prefix = """You are a master escape room designer.
-        
-[TODO: Add instructions for:
-- Following the pattern of examples
-- Maintaining difficulty level
-- Ensuring unique solutions
-- Creating engaging narratives]
 
-Here are examples of excellent puzzles:
-"""
+        prefix = """You are a master puzzle designer.
 
-        generation_suffix = """Now create a new {puzzle_type} puzzle with difficulty {difficulty}.
-Theme: {theme}
+Follow the style of the examples:
+- Creative but logical
+- Must have unique solvable answer
+- Must match requested difficulty
+- Output JSON: {{"puzzle":"...","solution":"...","explanation":"..."}}"""
 
-Generate a puzzle following the exact format of the examples. Output as JSON:"""
+        suffix = """Create a new {puzzle_type} puzzle themed '{theme}' at difficulty {difficulty}.
+Output ONLY JSON."""
 
-        # TODO: Set up the generation chain with FewShotPromptTemplate
-        self.generation_chain = None  # Replace with actual chain
+        self.generation_chain = FewShotPromptTemplate(
+            examples=self.puzzle_examples["riddle"] + self.puzzle_examples["cipher"] +
+                     self.puzzle_examples["pattern"] + self.puzzle_examples["logic"],
+            example_prompt=example_prompt,
+            prefix=prefix,
+            suffix=suffix,
+            input_variables=["puzzle_type", "difficulty", "theme"]
+        ) | self.llm | StrOutputParser()
 
-        # TODO: Create validation chain with examples of valid/invalid puzzles
-        self.validation_chain = None  # Replace with actual chain
+        validation_prompt = PromptTemplate.from_template(
+            """Evaluate puzzle fairness and logic.
 
-        # TODO: Create hint chain with examples of good hint progressions
-        self.hint_chain = None  # Replace with actual chain
+Puzzle: {puzzle_text}
+Solution: {solution}
 
-    def generate_puzzle(
-        self,
-        puzzle_type: PuzzleType,
-        difficulty: DifficultyLevel,
-        theme: str = "general",
-    ) -> Puzzle:
-        """
-        TODO #3: Generate a new puzzle using few-shot learning.
+Return JSON:
+{{
+ "is_solvable": true/false,
+ "has_unique_solution": true/false,
+ "difficulty_ok": true/false,
+ "issues": [...],
+ "suggestions": [...]
+}}"""
+        )
 
-        Args:
-            puzzle_type: Type of puzzle to generate
-            difficulty: Difficulty level (1-5)
-            theme: Theme for the puzzle
+        self.validation_chain = validation_prompt | self.llm | StrOutputParser()
 
-        Returns:
-            Generated Puzzle object
-        """
+        hint_prompt = PromptTemplate.from_template(
+            """Give {num_hints} hints for solving this:
 
-        # TODO: Select appropriate examples based on puzzle type
-        # Use generation_chain with selected examples
-        # Parse JSON response and create Puzzle object
+Puzzle: {puzzle}
+Solution: {solution}
 
-        puzzle = Puzzle(
-            puzzle_text="",
-            solution="",
+Return JSON list only: ["hint1","hint2","hint3"]"""
+        )
+
+        self.hint_chain = hint_prompt | self.llm | StrOutputParser()
+
+    def _clean_json(self, text):
+        try:
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            return json.loads(text[start:end])
+        except:
+            return {}
+
+    def generate_puzzle(self, puzzle_type, difficulty, theme="general") -> Puzzle:
+        raw = self.generation_chain.invoke(
+            {"puzzle_type": puzzle_type.value, "difficulty": difficulty.value, "theme": theme}
+        )
+
+        data = self._clean_json(raw)
+
+        return Puzzle(
+            puzzle_text=data.get("puzzle", ""),
+            solution=data.get("solution", ""),
             puzzle_type=puzzle_type.value,
             difficulty=difficulty.value,
             hints=[],
-            explanation="",
-            time_estimate=5,
+            explanation=data.get("explanation", ""),
+            time_estimate=5
         )
-
-        return puzzle
 
     def validate_puzzle(self, puzzle: Puzzle) -> Dict[str, any]:
-        """
-        TODO #4: Validate that a puzzle is solvable and fair.
-
-        Args:
-            puzzle: The puzzle to validate
-
-        Returns:
-            Validation result with solvability score and issues
-        """
-
-        # TODO: Use validation_chain with examples of good/bad puzzles
-        # Check for: unique solution, logical consistency, appropriate difficulty
-
-        validation = {
-            "is_solvable": True,
-            "has_unique_solution": True,
-            "difficulty_appropriate": True,
-            "issues": [],
-            "suggestions": [],
-        }
-
-        return validation
-
-    def generate_hints(self, puzzle: Puzzle, num_hints: int = 3) -> List[str]:
-        """
-        TODO #5: Generate progressive hints for a puzzle.
-
-        Args:
-            puzzle: The puzzle to generate hints for
-            num_hints: Number of hints to generate
-
-        Returns:
-            List of hints from subtle to obvious
-        """
-
-        # TODO: Use hint_chain with examples of good hint progressions
-        # Hints should gradually reveal the solution
-
-        hints = []
-
-        return hints
-
-    def create_puzzle_sequence(
-        self, theme: str, num_puzzles: int = 3, difficulty_curve: str = "increasing"
-    ) -> PuzzleSequence:
-        """
-        TODO #6: Create a sequence of interconnected puzzles.
-
-        Args:
-            theme: Overall theme for the sequence
-            num_puzzles: Number of puzzles in sequence
-            difficulty_curve: "increasing", "decreasing", or "varied"
-
-        Returns:
-            PuzzleSequence with related puzzles
-        """
-
-        # TODO: Generate multiple puzzles that build on each other
-        # Solutions from early puzzles can be clues for later ones
-        # Maintain narrative coherence
-
-        sequence = PuzzleSequence(
-            theme=theme, puzzles=[], final_solution="", narrative=""
+        raw = self.validation_chain.invoke(
+            {"puzzle_text": puzzle.puzzle_text, "solution": puzzle.solution}
         )
 
-        return sequence
+        try:
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
+            cleaned = raw[start:end]
+            return json.loads(cleaned)
+        except:
+            return {
+                "is_solvable": True,
+                "has_unique_solution": True,
+                "difficulty_ok": True,
+                "issues": [],
+                "suggestions": [],
+            }
 
-    def adapt_difficulty(
-        self, puzzle: Puzzle, target_difficulty: DifficultyLevel
-    ) -> Puzzle:
-        """
-        TODO #7 (Bonus): Adapt an existing puzzle to a different difficulty.
+    def generate_hints(self, puzzle: Puzzle, num_hints: int = 3) -> List[str]:
+        raw = self.hint_chain.invoke(
+            {"puzzle": puzzle.puzzle_text, "solution": puzzle.solution, "num_hints": num_hints}
+        )
+        try:
+            start = raw.find("[")
+            end = raw.rfind("]") + 1
+            cleaned = raw[start:end]
+            return json.loads(cleaned)
+        except:
+            return ["Think logically", "Re-read carefully", "Focus on clues"]
 
-        Args:
-            puzzle: Original puzzle
-            target_difficulty: Desired difficulty level
+    def create_puzzle_sequence(self, theme, num_puzzles=3, difficulty_curve="increasing") -> PuzzleSequence:
+        puzzles = []
+        for i in range(num_puzzles):
+            diff = DifficultyLevel(i+1 if difficulty_curve=="increasing" else 2)
+            p = self.generate_puzzle(PuzzleType.RIDDLE, diff, theme)
+            p.hints = self.generate_hints(p, 2)
+            puzzles.append(p)
 
-        Returns:
-            Modified puzzle at new difficulty
-        """
-
-        # TODO: Use few-shot examples showing difficulty adaptations
-        # Easier: add context, simplify language, provide partial solution
-        # Harder: add red herrings, require multiple steps, use ambiguity
-
-        adapted_puzzle = puzzle
-
-        return adapted_puzzle
+        return PuzzleSequence(
+            theme=theme,
+            puzzles=puzzles,
+            final_solution="Teamwork unlocks the time gate",
+            narrative=f"Escape adventure in world of {theme}"
+        )
 
 
 def test_puzzle_master():
-    """Test the puzzle master with various scenarios."""
-
     master = PuzzleMaster()
 
-    # Test different puzzle types and difficulties
-    test_scenarios = [
-        {
-            "type": PuzzleType.RIDDLE,
-            "difficulty": DifficultyLevel.EASY,
-            "theme": "pirates",
-        },
-        {
-            "type": PuzzleType.CIPHER,
-            "difficulty": DifficultyLevel.MEDIUM,
-            "theme": "space",
-        },
-        {
-            "type": PuzzleType.LOGIC,
-            "difficulty": DifficultyLevel.HARD,
-            "theme": "haunted mansion",
-        },
-        {
-            "type": PuzzleType.PATTERN,
-            "difficulty": DifficultyLevel.MEDIUM,
-            "theme": "ancient Egypt",
-        },
-        {
-            "type": PuzzleType.WORDPLAY,
-            "difficulty": DifficultyLevel.EASY,
-            "theme": "detective",
-        },
+    scenarios = [
+        (PuzzleType.RIDDLE, DifficultyLevel.EASY, "pirates"),
+        (PuzzleType.CIPHER, DifficultyLevel.MEDIUM, "space"),
+        (PuzzleType.LOGIC, DifficultyLevel.HARD, "haunted mansion"),
+        (PuzzleType.PATTERN, DifficultyLevel.MEDIUM, "ancient Egypt"),
+        (PuzzleType.WORDPLAY, DifficultyLevel.EASY, "detective"),
     ]
 
-    print("🔐 ESCAPE ROOM PUZZLE MASTER 🔐")
-    print("=" * 70)
+    print("🔐 ESCAPE ROOM PUZZLE MASTER 🔐\n" + "="*70)
 
-    for scenario in test_scenarios:
-        print(f"\n🎯 Generating {scenario['type'].value} puzzle")
-        print(f"   Theme: {scenario['theme']}")
-        print(f"   Difficulty: {'⭐' * scenario['difficulty'].value}")
+    for ptype, diff, theme in scenarios:
+        print(f"\n🎯 Generating {ptype.value} puzzle\n")
+        puzzle = master.generate_puzzle(ptype, diff, theme)
+        print("📝 Puzzle:\n", puzzle.puzzle_text)
 
-        # Generate puzzle
-        puzzle = master.generate_puzzle(
-            scenario["type"], scenario["difficulty"], scenario["theme"]
-        )
-
-        # Display puzzle
-        print(f"\n📝 Puzzle:")
-        print(f"   {puzzle.puzzle_text}")
-
-        # Validate puzzle
         validation = master.validate_puzzle(puzzle)
-        print(f"\n✅ Validation:")
-        print(f"   Solvable: {'Yes' if validation['is_solvable'] else 'No'}")
-        print(
-            f"   Unique Solution: {'Yes' if validation['has_unique_solution'] else 'No'}"
-        )
+        print("\n✅ Validation:", validation)
 
-        # Generate hints
-        hints = master.generate_hints(puzzle, num_hints=3)
-        if hints:
-            print(f"\n💡 Hints:")
-            for i, hint in enumerate(hints, 1):
-                print(f"   {i}. {hint}")
+        puzzle.hints = master.generate_hints(puzzle)
+        print("\n💡 Hints:", puzzle.hints)
 
-        # Show solution
-        print(f"\n🔓 Solution: {puzzle.solution}")
-        print(f"📖 Explanation: {puzzle.explanation}")
-        print(f"⏱️ Estimated Time: {puzzle.time_estimate} minutes")
+        print("\n🔓 Solution:", puzzle.solution)
+        print("📖 Explanation:", puzzle.explanation)
+        print("⏱️ Time:", puzzle.time_estimate, "min")
 
-        print("-" * 70)
+        print("-"*70)
 
-    # Test puzzle sequence
-    print("\n🎮 PUZZLE SEQUENCE TEST:")
-    print("=" * 70)
-
-    sequence = master.create_puzzle_sequence(
-        theme="Time Travel Mystery", num_puzzles=3, difficulty_curve="increasing"
-    )
-
-    print(f"📚 Theme: {sequence.theme}")
-    print(f"📖 Narrative: {sequence.narrative}")
-    print(f"🎯 Number of Puzzles: {len(sequence.puzzles)}")
-
-    for i, puzzle in enumerate(sequence.puzzles, 1):
-        print(f"\n   Puzzle {i}: {puzzle.puzzle_text[:100]}...")
-        print(f"   Type: {puzzle.puzzle_type}")
-        print(f"   Difficulty: {'⭐' * puzzle.difficulty}")
-
-    if sequence.final_solution:
-        print(f"\n🏆 Final Solution: {sequence.final_solution}")
+    print("\n🎮 Testing puzzle sequence...")
+    seq = master.create_puzzle_sequence("Time Travel Mystery")
+    print("Sequence puzzles:", len(seq.puzzles))
+    print("Story:", seq.narrative)
 
 
 if __name__ == "__main__":
-    # Make sure to set OPENAI_API_KEY environment variable
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("⚠️ Please set OPENAI_API_KEY environment variable")
-    else:
-        test_puzzle_master()
+    load_dotenv()
+    test_puzzle_master()

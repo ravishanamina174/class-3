@@ -11,6 +11,7 @@ import json
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate, FewShotPromptTemplate
 
@@ -248,6 +249,7 @@ def test_balancer():
 
 
 if __name__ == "__main__":
+    load_dotenv()
     if not os.environ.get("OPENAI_API_KEY"):
         print("⚠️ Please set OPENAI_API_KEY")
     else:
