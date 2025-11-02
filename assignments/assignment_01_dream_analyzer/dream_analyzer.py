@@ -371,3 +371,9 @@ if __name__ == "__main__":
         print("⚠️ Please set OPENAI_API_KEY environment variable")
     else:
         test_dream_analyzer()
+
+
+
+
+
+
