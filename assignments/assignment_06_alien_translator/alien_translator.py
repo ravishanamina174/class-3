@@ -8,11 +8,12 @@ recognition and logical deduction!
 
 import os
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import List
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate, FewShotPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 
 @dataclass
@@ -25,10 +26,6 @@ class Translation:
 
 
 class AlienTranslator:
-    """
-    AI-powered alien language translator using few-shot examples and CoT reasoning.
-    """
-
     def __init__(self, model_name: str = "gpt-4o-mini"):
         self.llm = ChatOpenAI(model=model_name, temperature=0.3)
         self.translation_examples = self._load_examples()
@@ -36,59 +33,102 @@ class AlienTranslator:
         self._setup_chains()
 
     def _load_examples(self) -> List[dict]:
-        """
-        TODO #1: Create example alien translations with reasoning.
-
-        Include: symbols, translation, step-by-step decoding logic
-        """
-
         examples = [
             {
                 "alien": "◈◈◈ ▲▲ ●",
-                "reasoning": "Step 1: ◈◈◈ appears to be quantity (3 symbols)\nStep 2: ▲▲ represents object type\nStep 3: ● is singular marker\nStep 4: Pattern suggests 'three ships approaching'",
+                "reasoning": "Step 1: ◈ repeated 3 times indicates quantity (3).\nStep 2: ▲▲ repeated indicates object type (ship).\nStep 3: ● marks an action/approach.\nConclusion: 'Three ships approaching'",
                 "translation": "Three ships approaching",
-                "pattern": "quantity-object-verb",
+                "pattern": "quantity-object-action",
             },
-            # TODO: Add more examples with reasoning chains
+            {
+                "alien": "♦♦ ◯◯◯ ▼",
+                "reasoning": "Step 1: ♦♦ indicates location.\nStep 2: ◯◯◯ indicates quantity (3 crew).\nStep 3: ▼ means departing.\nConclusion: 'Three crew departing the harbor'",
+                "translation": "Three crew departing the harbor",
+                "pattern": "location-quantity-action",
+            },
+            {
+                "alien": "★★★ ▲ ◆◆",
+                "reasoning": "Step 1: ★★★ indicates urgency.\nStep 2: ▲ is vessel.\nStep 3: ◆◆ means damaged.\nConclusion: 'High alert: vessel damaged'",
+                "translation": "High alert: vessel damaged",
+                "pattern": "urgency-object-state",
+            },
+            {
+                "alien": "△△ △ ◈●",
+                "reasoning": "Step 1: △△ = two small units.\nStep 2: △ = one unit.\nStep 3: ◈● = observe.\nConclusion: 'Two drones observing the area'",
+                "translation": "Two drones observing the area",
+                "pattern": "quantity-object-action",
+            },
         ]
-
         return examples
 
     def _setup_chains(self):
-        """
-        TODO #2: Create few-shot CoT chain for translation.
+        example_prompt = PromptTemplate.from_template(
+            """Alien: {alien}
+Reasoning: {reasoning}
+Translation: {translation}
+Pattern: {pattern}"""
+        )
 
-        Combine pattern examples with reasoning steps.
-        """
+        prefix = (
+            "You are an expert xenolinguist. Use examples to decode alien symbol strings.\n"
+            "Follow the reasoning style and produce an output JSON with keys: human_text, confidence, reasoning_steps (list), cultural_notes.\n"
+        )
 
-        # TODO: Create combined few-shot + CoT template
-        pass
+        suffix = (
+            "Now decode the following alien message:\n"
+            "Alien: {alien}\n"
+            "Output JSON as described above."
+        )
+
+        self.decoder_chain = (
+            FewShotPromptTemplate(
+                examples=self.translation_examples,
+                example_prompt=example_prompt,
+                prefix=prefix,
+                suffix=suffix,
+                input_variables=["alien"],
+            )
+            | self.llm
+            | StrOutputParser()
+        )
 
     def translate(self, alien_message: str) -> Translation:
-        """
-        TODO #3: Translate alien message using examples and reasoning.
+        try:
+            raw = self.decoder_chain.invoke({"alien": alien_message})
+            try:
+                parsed = json.loads(raw)
+            except:
+                block = raw[raw.find("{"): raw.rfind("}") + 1]
+                parsed = json.loads(block) if block.strip() else None
 
-        Args:
-            alien_message: Message to decode
+            if parsed:
+                return Translation(
+                    alien_text=alien_message,
+                    human_text=parsed.get("human_text") or parsed.get("translation", ""),
+                    confidence=float(parsed.get("confidence", 0.6)),
+                    reasoning_steps=parsed.get("reasoning_steps", []),
+                    cultural_notes=parsed.get("cultural_notes", ""),
+                )
+        except:
+            pass
 
-        Returns:
-            Translation with reasoning
-        """
+        mapping = {}
+        for ex in self.translation_examples:
+            for a, t in zip(ex["alien"].split(), ex["translation"].split()):
+                mapping.setdefault(a, t)
 
-        # TODO: Apply few-shot patterns and CoT reasoning
-
+        translated = [mapping.get(tok, "?") for tok in alien_message.split()]
         return Translation(
             alien_text=alien_message,
-            human_text="",
-            confidence=0.0,
-            reasoning_steps=[],
-            cultural_notes="",
+            human_text=" ".join(translated),
+            confidence=0.3,
+            reasoning_steps=["Fallback heuristic mapping used."],
+            cultural_notes="Symbols guessed from examples",
         )
 
 
 def test_translator():
     translator = AlienTranslator()
-
     test_messages = ["◈◈◈◈◈ ▲▲▲ ● ◆", "♦♦ ◯◯◯ ▼ ★★★★", "△△△ ◈ ■■ ◆◆◆"]
 
     print("👽 ALIEN LANGUAGE TRANSLATOR 👽")
@@ -99,6 +139,9 @@ def test_translator():
         print(f"\nAlien: {msg}")
         print(f"Translation: {result.human_text}")
         print(f"Confidence: {result.confidence:.0%}")
+        print("Reasoning:")
+        for step in result.reasoning_steps:
+            print(f"  - {step}")
         print("-" * 70)
 
 
